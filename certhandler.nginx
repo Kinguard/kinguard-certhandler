@@ -1,0 +1,4 @@
+location /.well-known {
+	index index.html index.htm;
+}
+

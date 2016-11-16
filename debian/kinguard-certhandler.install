@@ -1,4 +1,5 @@
 letsencrypt.sh /usr/share/kinguard-certhandler
 certbot-auto /usr/share/kinguard-certhandler
 kinguard-certhandler.cron /etc/cron.daily
+certhandler.nginx /etc/nginx/http_apps
 
