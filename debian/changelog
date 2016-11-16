@@ -1,0 +1,24 @@
+kinguard-certhandler (1.3) vili; urgency=medium
+
+  * Added option not to restart nginx 
+
+ -- PA Nilsson <pa@openproducts.se>  Fri, 11 Nov 2016 16:22:36 +0100
+
+kinguard-certhandler (1.2) vili; urgency=medium
+
+  * Fixed domain option 
+
+ -- PA Nilsson <pa@openproducts.se>  Fri, 11 Nov 2016 15:56:11 +0100
+
+kinguard-certhandler (1.1) vili; urgency=medium
+
+  * Added cron job file 
+
+ -- PA Nilsson <pa@openproducts.se>  Fri, 11 Nov 2016 14:32:19 +0100
+
+kinguard-certhandler (1.0) vili; urgency=medium
+
+  * Initial release only supporting Let's Encrypt certificates
+
+ -- PA Nilsson <pa@openproducts.se>  Fri, 11 Nov 2016 13:41:05 +0100
+
