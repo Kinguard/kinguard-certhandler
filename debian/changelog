@@ -1,3 +1,9 @@
+kinguard-certhandler (1.6) vili; urgency=medium
+
+  * Changed certificate link name to a generic link name 
+
+ -- PA Nilsson <pa@openproducts.se>  Wed, 16 Nov 2016 11:09:46 +0100
+
 kinguard-certhandler (1.5) vili; urgency=medium
 
   * Added nginx http config for Let's Encrypt 

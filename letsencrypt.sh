@@ -14,8 +14,8 @@ WEBROOT="/var/www/static"
 
 CERTPATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
 KEYPATH="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
-CERTLINK="/etc/opi/kinguard_le.pem"
-KEYLINK="/etc/opi/kinguard_lekey.pem"
+CERTLINK="/etc/opi/kinguard_ext.pem"
+KEYLINK="/etc/opi/kinguard_extkey.pem"
 
 function nginx_restart {
 	debug "Check nginx config"
@@ -108,7 +108,7 @@ function create_configs {
 		grep ssl_certificate $file &> /dev/null 
 	
 		if [ $? -eq 0 ]; then # certificates are used in the vhost
-			grep "_le[key]*\.pem" $file &> /dev/null 
+			grep "_ext[key]*\.pem" $file &> /dev/null 
 			if [ $? -eq 0 ]; then
 				#Let's Encrypt cert already in use, do nothing
 				debug "Already using Let's Encrypt Certificates"
@@ -126,8 +126,8 @@ function create_configs {
 			fi
 		
 			# change the ssl configs to Let's Encrypts certs
-			sed -i 's/ssl_certificate\s.*/ssl_certificate \/etc\/opi\/kinguard_le.pem;/' /etc/nginx/sites-available/keep_LE
-			sed -i 's/ssl_certificate_key\s.*/ssl_certificate_key \/etc\/opi\/kinguard_lekey.pem;/' /etc/nginx/sites-available/keep_LE
+			sed -i 's/ssl_certificate\s.*/ssl_certificate \/etc\/opi\/kinguard_ext.pem;/' /etc/nginx/sites-available/keep_LE
+			sed -i 's/ssl_certificate_key\s.*/ssl_certificate_key \/etc\/opi\/kinguard_extkey.pem;/' /etc/nginx/sites-available/keep_LE
 		fi
 	done
 }
@@ -135,7 +135,7 @@ function create_configs {
 function restore_configs {
 	for file in /etc/nginx/sites-enabled/*; do
 		# is it already usng a Let's Encrypt cert?
-		grep "_le[key]*\.pem" $file &> /dev/null 
+		grep "_ext[key]*\.pem" $file &> /dev/null 
 		if [ $? -eq 0 ]; then
 			debug "Restore config for $file"
 			targetfile=$(basename "$file")
@@ -192,7 +192,7 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ]; then
 
 		for file in /etc/nginx/sites-enabled/*; do
 			# is it already usng a Let's Encrypt cert?
-			grep "_le[key]*\.pem" $file &> /dev/null 
+			grep "_ext[key]*\.pem" $file &> /dev/null 
 			if [ $? -eq 0 ]; then
 				#Let's Encrypt cert already in use, do nothing
 				debug "Already using Let's Encrypt Certificates"
@@ -223,7 +223,7 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ]; then
 	fi
 elif [ "$CMD" = "renew" ]; then
 	debug "Check if certificates are used"
-	grep "_le[key]*\.pem" /etc/nginx/sites-enabled/* &> /dev/null 
+	grep "_ext[key]*\.pem" /etc/nginx/sites-enabled/* &> /dev/null 
 	if [ $? -ne 0 ]; then
 		debug "Let's Encrypt certificates not used"
 		exit 0
