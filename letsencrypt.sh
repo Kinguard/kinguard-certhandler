@@ -9,13 +9,7 @@ source $SYSCONFIG
 DOMAIN="${opi_name}.op-i.me"
 NORESTART=false
 
-SCRIPT="${DIR}/certbot-auto"
-WEBROOT="/var/www/static"
-
-CERTPATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
-KEYPATH="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
-CERTLINK="/etc/opi/kinguard_ext.pem"
-KEYLINK="/etc/opi/kinguard_extkey.pem"
+SCRIPT="${DIR}/dehydrated/dehydrated"
 
 function nginx_restart {
 	debug "Check nginx config"
@@ -77,7 +71,7 @@ function getargs {
 			CMD="revoke"
 			;;
 		s)
-			STAGING=" --staging --break-my-certs "		
+			STAGING="-f ${DIR}/dehydrated/staging-config"
 			;;
 		u)
 			CMD="renew"
@@ -108,7 +102,7 @@ function create_configs {
 		grep ssl_certificate $file &> /dev/null 
 	
 		if [ $? -eq 0 ]; then # certificates are used in the vhost
-			grep "_ext[key]*\.pem" $file &> /dev/null 
+			grep "${CERTDIR}.*\.pem" $file &> /dev/null 
 			if [ $? -eq 0 ]; then
 				#Let's Encrypt cert already in use, do nothing
 				debug "Already using Let's Encrypt Certificates"
@@ -124,18 +118,18 @@ function create_configs {
 				debug "Copy config: $targetfile"
 				cp $file $target
 			fi
-		
 			# change the ssl configs to Let's Encrypts certs
-			sed -i 's/ssl_certificate\s.*/ssl_certificate \/etc\/opi\/kinguard_ext.pem;/' /etc/nginx/sites-available/keep_LE
-			sed -i 's/ssl_certificate_key\s.*/ssl_certificate_key \/etc\/opi\/kinguard_extkey.pem;/' /etc/nginx/sites-available/keep_LE
+			sed -i "s%ssl_certificate\s.*%ssl_certificate ${CERTLINK};%" ${target}
+			sed -i "s%ssl_certificate_key\s.*%ssl_certificate_key ${KEYLINK};%" ${target}
 		fi
 	done
 }
 
+
 function restore_configs {
 	for file in /etc/nginx/sites-enabled/*; do
 		# is it already usng a Let's Encrypt cert?
-		grep "_ext[key]*\.pem" $file &> /dev/null 
+		grep "${CERTDIR}.*\.pem" $file &> /dev/null 
 		if [ $? -eq 0 ]; then
 			debug "Restore config for $file"
 			targetfile=$(basename "$file")
@@ -152,58 +146,78 @@ function restore_configs {
 	done
 }
 
+function run {
+	if [ $VERBOSE ]; then
+		echo "Running script"
+		$@
+	else
+		$@ &> /dev/null
+	fi
+	return $?
+}
+
+function get_cert_links {
+	D_CONFIG="$(${SCRIPT} -e | grep CERTDIR)"
+	CERTDIR=${D_CONFIG//*CERTDIR=/}
+	CERTDIR="${CERTDIR//\"/}"  
+
+	CERTLINK="${CERTDIR}/${DOMAIN}/fullchain.pem"
+	KEYLINK="${CERTDIR}/${DOMAIN}/privkey.pem"
+
+	debug "CERTLINK: ${CERTLINK}"
+	debug "KEYLINK: ${KEYLINK}"
+}
+
 getargs "$@" #get the script arguments
 
 debug "Running Let's Encrypt certificate generation for ${DOMAIN}"
 
 if [ "$CMD" = "create" ] || [ "$CMD" = "force" ]; then
-	
-	EMAIL="admin@${DOMAIN}"
-	create_configs  # generate configuration files if needed
 
+
+	get_cert_links	
+	create_configs  # generate configuration files if needed
 	if [ -n "$STAGING" ]; then
 		debug "Using staging servers"
 	fi
 
-	OPTIONS="certonly ${STAGING} --agree-tos --email ${EMAIL} -n ${QUIET} --no-self-upgrade --webroot -w ${WEBROOT} -d ${DOMAIN}"
+	OPTIONS="-c -d ${DOMAIN} ${STAGING}"
 	if [ "$CMD" = "force" ]; then
-		OPTIONS="$OPTIONS --force-renewal"
+		OPTIONS="$OPTIONS --force"
 	fi
 
 	debug "Requesting cert"
 	debug "OPTIONS: ${OPTIONS}"
 
-	${SCRIPT} ${OPTIONS}
-	res=$?
+	run ${SCRIPT} ${OPTIONS}
 
-	debug "Certbot-auto returned ${res}"
+	debug "Cert script returned ${?}"
 
-	if [ $res -eq 0 ]; then
-		# certbot returned success value
-		debug "Installing cert"
+	if [ $? -eq 0 ]; then
+		# cert script returned success value
 		if [ ! -L "$CERTLINK" ]; then # check if the symlink exists
-			debug "Creating symlink for cert"
-			ln -s $CERTPATH $CERTLINK
+			debug "Symlink to cert not found, abort"
+			exit 1
 		fi
 		if [ ! -L "$KEYLINK" ]; then # check if the symlink exists
-			debug "Creating symlink for key"
-			ln -s $KEYPATH $KEYLINK
+			debug "Symlink to key not found, abort"
+			exit 1
 		fi
 
 		for file in /etc/nginx/sites-enabled/*; do
 			# is it already usng a Let's Encrypt cert?
-			grep "_ext[key]*\.pem" $file &> /dev/null 
+			grep "${CERTDIR}.*\.pem" $file &> /dev/null 
 			if [ $? -eq 0 ]; then
 				#Let's Encrypt cert already in use, do nothing
 				debug "Already using Let's Encrypt Certificates"
 				continue
 			fi
-			
+
 			# is there a Let's Encrypt config available for the vhost?
 			LE_config=$(basename "$file")
 			ConfigTarget="/etc/nginx/sites-available/${LE_config}_LE"
 			if [ -f  "$ConfigTarget" ]; then
-				debug "Exchanging config file: $LE_config";
+				debug "Exchanging config file: ${LE_config}";
 				rm -f $file
 				ln -s $ConfigTarget /etc/nginx/sites-enabled/
 			fi
@@ -223,22 +237,24 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ]; then
 	fi
 elif [ "$CMD" = "renew" ]; then
 	debug "Check if certificates are used"
-	grep "_ext[key]*\.pem" /etc/nginx/sites-enabled/* &> /dev/null 
+	grep "${CERTDIR}*\.pem" /etc/nginx/sites-enabled/* &> /dev/null 
 	if [ $? -ne 0 ]; then
 		debug "Let's Encrypt certificates not used"
 		exit 0
 	fi
 	debug "Renewing certs"
-	OPTIONS="renew -n ${QUIET}"
-	${SCRIPT} ${OPTIONS}
+	OPTIONS="-c"
+	run ${SCRIPT} ${OPTIONS}
 	if [ $? -ne 0 ]; then
 		debug "Failed to renew certificates"
+	else
+		debug "Checking if webserver is running and should be restarted"
+		service nginx status &> /dev/null 
+		if [ $? -eq 0 ]; then # only restart nginx if it is running
+			nginx_restart
+		fi
 	fi
 
-	service nginx status &> /dev/null 
-	if [ $? -eq 0 ]; then # only restart nginx if it is running
-		nginx_restart
-	fi
 
 elif [ "$CMD" = "revoke" ]; then
 	debug "Restoring original config"

@@ -1,0 +1,15 @@
+#############################################################################
+# This is the main config file for dehydrated                               #
+#                                                                           #
+# This is the default configuration for the Debian package.                 #
+# To see a more comprehensive example, see                                  #
+# https://github.com/lukas2511/dehydrated/blob/master/docs/examples/config  #
+#                                                                           #
+# For details please read:                                                  #
+# /usr/share/doc/letsencrypt.sh/README.Debian                               #
+#############################################################################
+
+BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+WELLKNOWN="/var/www/static/.well-known/acme-challenge"
+DOMAINS_TXT="/usr/share/kinguard-dehydrated/domains.txt"
+CERTDIR=/etc/opi/signed_certs
