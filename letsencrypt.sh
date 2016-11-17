@@ -6,7 +6,16 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 SYSCONFIG="/etc/opi/sysinfo.conf"
 source $SYSCONFIG
 
-DOMAIN="${opi_name}.op-i.me"
+CERT="/etc/opi/web_cert.pem"
+KEY="/etc/opi/web_key.pem"
+
+ORG_CERT="/etc/opi/org_cert.pem"
+ORG_KEY="/etc/opi/org_key.pem"
+
+
+if [ ! -z ${opi_name} ]; then
+	DOMAIN="${opi_name}.op-i.me"
+fi
 NORESTART=false
 
 SCRIPT="${DIR}/dehydrated/dehydrated"
@@ -35,7 +44,7 @@ function nginx_restart {
 
 function usage {
 	echo "Use '${ME} [-cfrsv] [-d domain]"
-	echo "  -c 			: tries to retreive a Let's Encrypt certificate"
+	echo "  -c 			: tries to retreive/update a Let's Encrypt certificate"
 	echo "       		  for the name stated in sysinfo.conf"
 	echo "  -f 			: same as '-c' but also forces a renewal of the certificate"
 	echo "       		  even if it has not expired"
@@ -44,7 +53,6 @@ function usage {
 	echo "  -r 			: Removes the Let's Encrypt certificate and restores default config"	
 	echo "  -s 			: Use Let's Encrypt staging servers,"
 	echo "        		  working but not signed certificates will be generated"
-	echo "  -u 			: Updates the current certificates"
 	echo "  -v 			: Makes the script talk back"
 	echo ""
 	echo "This script will make a of copy of any active virtual hosts file, change the certificate pointers to the Let's Encrypt certificates and activate the new configs. It will not touch any vhosts that are not enabled or that does not use ssl."
@@ -60,6 +68,7 @@ function getargs {
 			;;
 		d)
 			DOMAIN=$OPTARG
+			debug "Setting domain to ${DOMAIN}"
 			;;
 		f)
 			CMD="force"
@@ -72,9 +81,6 @@ function getargs {
 			;;
 		s)
 			STAGING="-f ${DIR}/dehydrated/staging-config"
-			;;
-		u)
-			CMD="renew"
 			;;
 		v)
 			VERBOSE=true
@@ -96,54 +102,29 @@ function debug {
 }
 
 function create_configs {
-	for file in /etc/nginx/sites-enabled/*; do
-
-		# are the vhosts already using ssl?
-		grep ssl_certificate $file &> /dev/null 
-	
-		if [ $? -eq 0 ]; then # certificates are used in the vhost
-			grep "${CERTDIR}.*\.pem" $file &> /dev/null 
-			if [ $? -eq 0 ]; then
-				#Let's Encrypt cert already in use, do nothing
-				debug "Already using Let's Encrypt Certificates"
-				continue
-			fi
-		
-			# Create a copy of the vhost file
-			targetfile=$(basename "$file")
-			target="/etc/nginx/sites-available/${targetfile}_LE"
-			if [ -f "$target" ]; then
-				debug "Target (${target}) exist"
-			else
-				debug "Copy config: $targetfile"
-				cp $file $target
-			fi
-			# change the ssl configs to Let's Encrypts certs
-			sed -i "s%ssl_certificate\s.*%ssl_certificate ${CERTLINK};%" ${target}
-			sed -i "s%ssl_certificate_key\s.*%ssl_certificate_key ${KEYLINK};%" ${target}
-		fi
-	done
+	if [ ! -e  ${ORG_CERT} ]; then
+		debug "Copy original cert and create symlink"
+		mv ${CERT} ${ORG_CERT}
+		ln -s ${ORG_CERT} ${CERT}
+	fi 
+	if [ ! -e  ${ORG_KEY} ]; then
+		debug "Copy original key and create symlink"
+		mv ${KEY} ${ORG_KEY}
+		ln -s ${ORG_KEY} ${KEY}
+	fi 
 }
 
-
 function restore_configs {
-	for file in /etc/nginx/sites-enabled/*; do
-		# is it already usng a Let's Encrypt cert?
-		grep "${CERTDIR}.*\.pem" $file &> /dev/null 
-		if [ $? -eq 0 ]; then
-			debug "Restore config for $file"
-			targetfile=$(basename "$file")
-			if [[ "$file" == *_LE ]]; then			
-				target=${targetfile::-3}
-			else
-				# not our file do not touch it
-				debug "Not our file"
-				continue
-			fi
-			rm -f $file
-			ln -s /etc/nginx/sites-available/${target} /etc/nginx/sites-enabled/
-		fi
-	done
+	if [ -e  ${ORG_CERT} ]; then
+		debug "Restore original cert"
+		rm -f ${CERT}
+		mv ${ORG_CERT} ${CERT}
+	fi 
+	if [ -e  ${ORG_KEY} ]; then
+		debug "Restore original key"
+		rm -f ${KEY}		
+		mv ${ORG_KEY} ${KEY}
+	fi 
 }
 
 function run {
@@ -170,13 +151,20 @@ function get_cert_links {
 
 getargs "$@" #get the script arguments
 
+if [ -z ${DOMAIN} ]; then
+	debug "Empty DOMAIN, nothing to do"
+	exit 0
+fi
+
 debug "Running Let's Encrypt certificate generation for ${DOMAIN}"
 
-if [ "$CMD" = "create" ] || [ "$CMD" = "force" ]; then
+get_cert_links	
+
+if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 
 
-	get_cert_links	
 	create_configs  # generate configuration files if needed
+
 	if [ -n "$STAGING" ]; then
 		debug "Using staging servers"
 	fi
@@ -204,24 +192,14 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ]; then
 			exit 1
 		fi
 
-		for file in /etc/nginx/sites-enabled/*; do
-			# is it already usng a Let's Encrypt cert?
-			grep "${CERTDIR}.*\.pem" $file &> /dev/null 
-			if [ $? -eq 0 ]; then
-				#Let's Encrypt cert already in use, do nothing
-				debug "Already using Let's Encrypt Certificates"
-				continue
-			fi
 
-			# is there a Let's Encrypt config available for the vhost?
-			LE_config=$(basename "$file")
-			ConfigTarget="/etc/nginx/sites-available/${LE_config}_LE"
-			if [ -f  "$ConfigTarget" ]; then
-				debug "Exchanging config file: ${LE_config}";
-				rm -f $file
-				ln -s $ConfigTarget /etc/nginx/sites-enabled/
-			fi
-		done
+		if [ -e ${ORG_CERT} ] && [ -e ${ORG_KEY} ]; then  # make sure that the original key and certificate is still present
+			rm -f ${CERT}
+			ln -s ${CERTLINK} ${CERT}
+
+			rm -f ${KEY}
+			ln -s ${KEYLINK} ${KEY}
+		fi
 
 		nginx_restart
 		if [ $? -ne 0 ]; then
@@ -235,26 +213,6 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ]; then
 		debug "Failed to retreive certificate"
 		exit 1
 	fi
-elif [ "$CMD" = "renew" ]; then
-	debug "Check if certificates are used"
-	grep "${CERTDIR}*\.pem" /etc/nginx/sites-enabled/* &> /dev/null 
-	if [ $? -ne 0 ]; then
-		debug "Let's Encrypt certificates not used"
-		exit 0
-	fi
-	debug "Renewing certs"
-	OPTIONS="-c"
-	run ${SCRIPT} ${OPTIONS}
-	if [ $? -ne 0 ]; then
-		debug "Failed to renew certificates"
-	else
-		debug "Checking if webserver is running and should be restarted"
-		service nginx status &> /dev/null 
-		if [ $? -eq 0 ]; then # only restart nginx if it is running
-			nginx_restart
-		fi
-	fi
-
 
 elif [ "$CMD" = "revoke" ]; then
 	debug "Restoring original config"
