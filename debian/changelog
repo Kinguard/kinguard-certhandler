@@ -1,3 +1,9 @@
+kinguard-certhandler (1.9) vili; urgency=medium
+
+  * Added config support for different backends 
+
+ -- PA Nilsson <pa@openproducts.se>  Fri, 18 Nov 2016 15:57:30 +0100
+
 kinguard-certhandler (1.8) vili; urgency=medium
 
   * Simplified handling to only copy and rename symlinks for certificates 

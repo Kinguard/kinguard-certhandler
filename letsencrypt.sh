@@ -4,7 +4,10 @@ ME=`basename "$0"`
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 SYSCONFIG="/etc/opi/sysinfo.conf"
+HANDLER_CONFIG="/etc/kinguard/kinguard-certhandler.conf"
+
 source $SYSCONFIG
+source $HANDLER_CONFIG
 
 CERT="/etc/opi/web_cert.pem"
 KEY="/etc/opi/web_key.pem"
@@ -16,40 +19,17 @@ ORG_KEY="/etc/opi/org_key.pem"
 if [ ! -z ${opi_name} ]; then
 	DOMAIN="${opi_name}.op-i.me"
 fi
-NORESTART=false
 
 SCRIPT="${DIR}/dehydrated/dehydrated"
 
-function nginx_restart {
-	debug "Check nginx config"
-	nginx -t &> /dev/null
-	if [ $? -ne 0 ]; then
-		debug "Nginx config error, not restarting"
-		return 1
-	fi
-	if [ $NORESTART == true ]; then
-		debug "Not restarting Nginx by request"
-		return 0
-	fi
-	debug "Restarting webserver"
-	service nginx restart &> /dev/null 
-	service nginx status &> /dev/null 
-	if [ $? -ne 0 ]; then
-		debug "Webserver not running after restart command"
-		return 1
-	else
-		return 0
-	fi
-}
-
 function usage {
 	echo "Use '${ME} [-cfrsv] [-d domain]"
+	echo "  -a 			: Stand alone, will launch and shut down nginx"
 	echo "  -c 			: tries to retreive/update a Let's Encrypt certificate"
 	echo "       		  for the name stated in sysinfo.conf"
 	echo "  -f 			: same as '-c' but also forces a renewal of the certificate"
 	echo "       		  even if it has not expired"
 	echo "  -d domain	: Create the certificate for 'domain' instade of what is in the sysinfo.conf"
-	echo "  -n			: Do not restart nginx, useful when only the cert is needed"
 	echo "  -r 			: Removes the Let's Encrypt certificate and restores default config"	
 	echo "  -s 			: Use Let's Encrypt staging servers,"
 	echo "        		  working but not signed certificates will be generated"
@@ -61,8 +41,11 @@ function usage {
 
 function getargs {
 	QUIET=" -q"
-	while getopts "cd:fnrsuv" OPTION; do
+	while getopts "acd:frsv" OPTION; do
 		case "$OPTION" in
+		a)
+			STANDALONE="true"
+			;;
 		c)
 			CMD="create"
 			;;
@@ -72,9 +55,6 @@ function getargs {
 			;;
 		f)
 			CMD="force"
-			;;
-		n)
-			NORESTART=true
 			;;
 		r)
 			CMD="revoke"
@@ -95,6 +75,8 @@ function getargs {
 
 }
 
+
+
 function debug {
 	if [ $VERBOSE ]; then
 		echo $1
@@ -102,6 +84,9 @@ function debug {
 }
 
 function create_configs {
+	local OC_WELLKNOWN="/usr/share/opi-control/web/.well-known" # well-known path for opi-control
+	local WEB_TARGET=$(dirname ${WELLKNOWN})
+	
 	if [ ! -e  ${ORG_CERT} ]; then
 		debug "Copy original cert and create symlink"
 		mv ${CERT} ${ORG_CERT}
@@ -112,6 +97,14 @@ function create_configs {
 		mv ${KEY} ${ORG_KEY}
 		ln -s ${ORG_KEY} ${KEY}
 	fi 
+
+	# check to see that a symlink to "well-known" exists from opi-control dir
+	if [ ! -L "$OC_WELLKNOWN" ]; then
+		debug "Creating symlink for opi-control use"
+		
+		ln -s ${WEB_TARGET} ${OC_WELLKNOWN}
+	fi
+
 }
 
 function restore_configs {
@@ -127,6 +120,38 @@ function restore_configs {
 	fi 
 }
 
+function nginx_restart {
+	debug "Check nginx config"
+	nginx -t &> /dev/null
+	if [ $? -ne 0 ]; then
+		debug "Nginx config error, not restarting"
+		return 1
+	fi
+	debug "(Re)starting webserver"
+	service nginx restart &> /dev/null 
+	service nginx status &> /dev/null 
+	if [ $? -ne 0 ]; then
+		debug "Webserver not running after restart command"
+		return 1
+	else
+		return 0
+	fi
+}
+
+function nginx_stop {
+	debug "Stopping webserver"
+	service nginx stop &> /dev/null 
+}
+
+function is_webserver_running {
+	#function will also print which webserver is using the port
+	server=$(netstat -tpln | grep -E '(^tcp.*\:443\s|^tcp.*\:80\s)')
+	running=$?
+	server=$(echo ${server} | sed -n 's%.*\/\([a-z,\-]*\)$%\1%p')
+	echo $server
+	return $running
+}
+	
 function run {
 	if [ $VERBOSE ]; then
 		echo "Running script"
@@ -137,10 +162,14 @@ function run {
 	return $?
 }
 
-function get_cert_links {
+function dehydrated_env {
+	D_CONFIG="$(${SCRIPT} -e | grep WELLKNOWN)"
+	WELLKNOWN=$(echo $D_CONFIG | sed -n 's%.*WELLKNOWN=\"\(.*\)\"%\1%p')
+	debug "WELLKNOWN: ${WELLKNOWN}"
+
 	D_CONFIG="$(${SCRIPT} -e | grep CERTDIR)"
-	CERTDIR=${D_CONFIG//*CERTDIR=/}
-	CERTDIR="${CERTDIR//\"/}"  
+	CERTDIR=$(echo $D_CONFIG | sed -n 's%.*CERTDIR=\"\(.*\)\"%\1%p')
+	debug "CERTDIR: $CERTDIR"
 
 	CERTLINK="${CERTDIR}/${DOMAIN}/fullchain.pem"
 	KEYLINK="${CERTDIR}/${DOMAIN}/privkey.pem"
@@ -151,14 +180,30 @@ function get_cert_links {
 
 getargs "$@" #get the script arguments
 
+case $BACKEND in
+	LETSENCRYPT)
+		debug "Using Let's Encrypt backend"
+		;;
+	USER)
+		debug "Using user defined certificates, nothing to do here"
+		exit 0
+		;;
+	*)
+		debug "Unknown certificate backend, aborting"
+		exit 1
+		;;
+esac
+
 if [ -z ${DOMAIN} ]; then
 	debug "Empty DOMAIN, nothing to do"
 	exit 0
 fi
 
+DOMAIN="$(echo ${DOMAIN} | tr '[:upper:]' '[:lower:]')"  # make lowercase fqdn
+
 debug "Running Let's Encrypt certificate generation for ${DOMAIN}"
 
-get_cert_links	
+dehydrated_env	
 
 if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 
@@ -168,6 +213,7 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 	if [ -n "$STAGING" ]; then
 		debug "Using staging servers"
 	fi
+	
 
 	OPTIONS="-c -d ${DOMAIN} ${STAGING}"
 	if [ "$CMD" = "force" ]; then
@@ -177,11 +223,48 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 	debug "Requesting cert"
 	debug "OPTIONS: ${OPTIONS}"
 
+	webserver=$(is_webserver_running)
+	debug "Using $webserver"
+	webserver_status=$?
+
+	if [ $STANDALONE ] && [ "${webserver_status}" -ne 0 ]; then
+		debug "Standalone mode, starting webserver"
+		nginx_restart
+	elif [ "${webserver_status}" -ne 0 ]; then
+		debug "No webserver running and stand-alone not specified, aborting"
+		exit 1		
+	fi
+	
+	
+	
 	run ${SCRIPT} ${OPTIONS}
+	
+	script_res=$?
+	debug "Cert script returned ${script_res}"
+	
+	if [ $webserver_status -ne 0 ]; then
+		# webserver was not running before, lets stop it again
+		debug "Standalone mode, stopping webserver"
+		nginx_stop
+	else
+		# restart webserver in order to reload cert
+		debug "Restart webserver to load new cert"
+		case $webserver in
+			nginx)
+				debug "Restarting webserver"
+				nginx_restart
+				;;
+			opi-control)
+				debug "Unknown webserver"
+				;;
+			*)
+				debug "Unknown webserver"
+				;;
+		esac
+	fi
 
-	debug "Cert script returned ${?}"
-
-	if [ $? -eq 0 ]; then
+	
+	if [ $script_res -eq 0 ]; then
 		# cert script returned success value
 		if [ ! -L "$CERTLINK" ]; then # check if the symlink exists
 			debug "Symlink to cert not found, abort"
@@ -201,12 +284,6 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 			ln -s ${KEYLINK} ${KEY}
 		fi
 
-		nginx_restart
-		if [ $? -ne 0 ]; then
-			echo "Failed to reload nginx configuration, restoring old config"
-			restore_configs
-			nginx_restart
-		fi
 		exit 0
 
 	else
@@ -224,3 +301,4 @@ else
 fi
 
 exit 0
+
