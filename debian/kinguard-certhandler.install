@@ -1,4 +1,3 @@
 letsencrypt.sh /usr/share/kinguard-certhandler
 dehydrated /usr/share/kinguard-certhandler
-kinguard-certhandler.cron /etc/cron.daily
 kinguard-certhandler.conf /etc/kinguard/

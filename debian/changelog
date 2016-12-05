@@ -1,3 +1,9 @@
+kinguard-certhandler (1.11) vili; urgency=medium
+
+  * Removed cron job since it is already triggered from dhsupdate.py in opi-access 
+
+ -- PA Nilsson <pa@openproducts.se>  Mon, 05 Dec 2016 15:18:20 +0100
+
 kinguard-certhandler (1.10) vili; urgency=medium
 
   * Added creation of well-known dir in post-inst script 
