@@ -1,3 +1,9 @@
+kinguard-certhandler (1.10) vili; urgency=medium
+
+  * Added creation of well-known dir in post-inst script 
+
+ -- PA Nilsson <pa@openproducts.se>  Mon, 05 Dec 2016 15:09:11 +0100
+
 kinguard-certhandler (1.9) vili; urgency=medium
 
   * Added config support for different backends 
