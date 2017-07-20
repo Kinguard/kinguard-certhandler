@@ -4,10 +4,11 @@ Priority: optional
 Maintainer: PA Nilsson <pa@openproducts.se>
 Build-Depends: debhelper (>= 8.0.0)
 Standards-Version: 3.9.4
+Homepage:http://www.openproducts.com
 
 Package: kinguard-certhandler
 Architecture: all
-Depends: ${misc:Depends},opi, nginx, curl, libcurl3
+Depends: ${misc:Depends}, nginx, curl, libcurl3
 Conflicts: 
 Description: Certificate handler for The Kinguard Project
  Handles requesting and setting up certificates using Let's Encrypt
