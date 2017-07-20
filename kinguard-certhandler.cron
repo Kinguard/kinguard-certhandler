@@ -1,3 +1,0 @@
-#!/bin/bash
-# update certificates
-/usr/share/kinguard-certhandler/letsencrypt.sh -c
