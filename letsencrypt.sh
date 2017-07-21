@@ -1,26 +1,10 @@
 #!/bin/bash
 
-ME=`basename "$0"`
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-SYSCONFIG="/etc/opi/sysinfo.conf"
-HANDLER_CONFIG="/etc/kinguard/kinguard-certhandler.conf"
-
-source $SYSCONFIG
-source $HANDLER_CONFIG
-
-CERT="/etc/opi/web_cert.pem"
-KEY="/etc/opi/web_key.pem"
-
-ORG_CERT="/etc/opi/org_cert.pem"
-ORG_KEY="/etc/opi/org_key.pem"
-
-
-if [ ! -z ${opi_name} ]; then
-	DOMAIN="${opi_name}.op-i.me"
-fi
-
-SCRIPT="${DIR}/dehydrated/dehydrated"
+function debug {
+	if [ $VERBOSE ]; then
+		echo $1
+	fi
+}
 
 function usage {
 	echo "Use '${ME} [-cfrsv] [-d domain]"
@@ -60,7 +44,7 @@ function getargs {
 			CMD="revoke"
 			;;
 		s)
-			STAGING="-f ${DIR}/dehydrated/staging-config"
+			CONFIG="-f ${DIR}/dehydrated/staging-config"
 			;;
 		v)
 			VERBOSE=true
@@ -73,14 +57,6 @@ function getargs {
 		esac
 	done
 
-}
-
-
-
-function debug {
-	if [ $VERBOSE ]; then
-		echo $1
-	fi
 }
 
 function create_configs {
@@ -147,8 +123,14 @@ function is_webserver_running {
 	#function will also print which webserver is using the port
 	server=$(netstat -tpln | grep -E '(^tcp.*\:443\s|^tcp.*\:80\s)')
 	running=$?
-	server=$(echo ${server} | sed -n 's%.*\/\([a-z,\-]*\)$%\1%p')
-	echo $server
+	server=$(echo ${server} | sed -n 's%.*\/\([a-z\-]*\).*$%\1%p')
+	if [ $running -eq 0 ]; then
+		if [ -z "$server" ]; then
+			echo="Unknown webserver"
+		else
+			echo $server
+		fi
+	fi
 	return $running
 }
 	
@@ -177,6 +159,41 @@ function dehydrated_env {
 	debug "CERTLINK: ${CERTLINK}"
 	debug "KEYLINK: ${KEYLINK}"
 }
+
+
+ME=`basename "$0"`
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+SYSCONFIG="/etc/opi/sysinfo.conf"
+HANDLER_CONFIG="/etc/kinguard/kinguard-certhandler.conf"
+CONFIG="-f ${DIR}/dehydrated/staging-config"
+
+if [ -e $SYSCONFIG ]; then 
+	source $SYSCONFIG
+else
+	debug "No sysinfo file found"
+fi
+
+if [ -e $HANDLER_CONFIG ]; then 
+	source $HANDLER_CONFIG
+else
+	echo "Missing config file, exit"
+	exit 1
+fi
+
+CERT="/etc/opi/web_cert.pem"
+KEY="/etc/opi/web_key.pem"
+
+ORG_CERT="/etc/opi/org_cert.pem"
+ORG_KEY="/etc/opi/org_key.pem"
+
+
+if [ ! -z ${opi_name} ]; then
+	DOMAIN="${opi_name}.op-i.me"
+fi
+
+SCRIPT="${DIR}/dehydrated/dehydrated"
+
 
 getargs "$@" #get the script arguments
 
@@ -210,12 +227,13 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 
 	create_configs  # generate configuration files if needed
 
-	if [ -n "$STAGING" ]; then
-		debug "Using staging servers"
+	webserver=$(is_webserver_running)
+	webserver_status=$?
+	if [ $webserver_status -eq 0 ]; then
+		debug "Using $webserver"
 	fi
-	
 
-	OPTIONS="-c -d ${DOMAIN} ${STAGING}"
+	OPTIONS="-c -d ${DOMAIN} ${CONFIG}"
 	if [ "$CMD" = "force" ]; then
 		OPTIONS="$OPTIONS --force"
 	fi
@@ -223,9 +241,6 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 	debug "Requesting cert"
 	debug "OPTIONS: ${OPTIONS}"
 
-	webserver=$(is_webserver_running)
-	debug "Using $webserver"
-	webserver_status=$?
 
 	if [ $STANDALONE ] && [ "${webserver_status}" -ne 0 ]; then
 		debug "Standalone mode, starting webserver"
@@ -235,36 +250,37 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 		exit 1		
 	fi
 	
-	
-	
 	run ${SCRIPT} ${OPTIONS}
 	
 	script_res=$?
 	debug "Cert script returned ${script_res}"
-	
-	if [ $webserver_status -ne 0 ]; then
-		# webserver was not running before, lets stop it again
-		debug "Standalone mode, stopping webserver"
-		nginx_stop
-	else
-		# restart webserver in order to reload cert
-		debug "Restart webserver to load new cert"
-		case $webserver in
-			nginx)
-				debug "Restarting webserver"
-				nginx_restart
-				;;
-			opi-control)
-				debug "Unknown webserver"
-				;;
-			*)
-				debug "Unknown webserver"
-				;;
-		esac
-	fi
 
-	
 	if [ $script_res -eq 0 ]; then
+
+
+
+		if [ $webserver_status -ne 0 ]; then
+			# webserver was not running before, lets stop it again
+			debug "Standalone mode, stopping webserver"
+			nginx_stop
+		else
+			# restart webserver in order to reload cert
+			debug "Restart webserver to load new cert"
+			case $webserver in
+				nginx)
+					debug "Restarting webserver"
+					nginx_restart
+					;;
+				opi-control)
+					debug "opi-control running"
+					service opi-control restart
+					;;
+				*)
+					debug "Unknown webserver"
+					;;
+			esac
+		fi
+		
 		# cert script returned success value
 		if [ ! -L "$CERTLINK" ]; then # check if the symlink exists
 			debug "Symlink to cert not found, abort"
