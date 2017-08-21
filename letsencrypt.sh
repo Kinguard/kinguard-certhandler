@@ -77,22 +77,22 @@ function create_configs {
 	# check to see that a symlink to "well-known" exists from opi-control dir
 	if [ ! -L "$OC_WELLKNOWN" ]; then
 		debug "Creating symlink for opi-control use"
-		
+		mkdir -p $(dirname ${OC_WELLKNOWN})
 		ln -s ${WEB_TARGET} ${OC_WELLKNOWN}
 	fi
 
 }
 
 function restore_configs {
-	if [ -e  ${ORG_CERT} ]; then
+	if [ -e  ${ORG_CERT} ] && [ -e  ${ORG_KEY} ]; then
 		debug "Restore original cert"
 		rm -f ${CERT}
 		mv ${ORG_CERT} ${CERT}
-	fi 
-	if [ -e  ${ORG_KEY} ]; then
-		debug "Restore original key"
 		rm -f ${KEY}		
 		mv ${ORG_KEY} ${KEY}
+	else
+		debug "Missing original key/cert"
+		return 1
 	fi 
 }
 
@@ -211,20 +211,19 @@ case $BACKEND in
 		;;
 esac
 
-if [ -z ${DOMAIN} ]; then
-	debug "Empty DOMAIN, nothing to do"
-	exit 0
-fi
-
-DOMAIN="$(echo ${DOMAIN} | tr '[:upper:]' '[:lower:]')"  # make lowercase fqdn
-
-debug "Running Let's Encrypt certificate generation for ${DOMAIN}"
-
-dehydrated_env	
 
 if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 
+	if [ -z ${DOMAIN} ]; then
+		debug "Empty DOMAIN, nothing to do"
+		exit 0
+	fi
 
+	DOMAIN="$(echo ${DOMAIN} | tr '[:upper:]' '[:lower:]')"  # make lowercase fqdn
+
+	debug "Running Let's Encrypt certificate generation for ${DOMAIN}"
+	
+	dehydrated_env	
 	create_configs  # generate configuration files if needed
 
 	webserver=$(is_webserver_running)
