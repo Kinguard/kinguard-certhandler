@@ -166,9 +166,10 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 SYSCONFIG="/etc/opi/sysinfo.conf"
 HANDLER_CONFIG="/etc/kinguard/kinguard-certhandler.conf"
-CONFIG="-f ${DIR}/dehydrated/staging-config"
+CONFIG="-f ${DIR}/dehydrated/config"
 
 if [ -e $SYSCONFIG ]; then 
+	# get name and domain from sysconfig.
 	source $SYSCONFIG
 else
 	debug "No sysinfo file found"
@@ -187,9 +188,8 @@ KEY="/etc/opi/web_key.pem"
 ORG_CERT="/etc/opi/org_cert.pem"
 ORG_KEY="/etc/opi/org_key.pem"
 
-
-if [ ! -z ${opi_name} ]; then
-	DOMAIN="${opi_name}.op-i.me"
+if [ ! -z ${opi_name} ] && [ ! -z ${domain} ] ; then
+	DOMAIN="${opi_name}.${domain}"
 fi
 
 SCRIPT="${DIR}/dehydrated/dehydrated"
