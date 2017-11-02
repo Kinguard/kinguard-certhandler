@@ -283,21 +283,8 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 			debug "Standalone mode, stopping webserver"
 			nginx_stop
 		else
-			case $webserver in
-				nginx)
-					# Nginx is shall already be restarted by dehydrated hook-script
-					debug "Nginx is current webserver. Skipping restart, it should aldreay have been restarted."
-					#nginx_restart
-					;;
-				opi-control)
-					debug "Restart webserver to load new cert"
-					debug "opi-control running"
-					service opi-control restart
-					;;
-				*)
-					debug "Unknown webserver"
-					;;
-			esac
+			# webserver restarted by hook-script
+			debug "Keeping webserver alive."
 		fi
 		
 		#clean up unused certs

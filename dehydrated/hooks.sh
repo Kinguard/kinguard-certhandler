@@ -59,9 +59,15 @@ deploy_cert() {
     if [[ $nginx_status -eq 0 ]]; then
         echo " + Restarting Nginx"
         service nginx restart
-    else 
-        echo " + Nginx not running"
     fi
+    ps aux | grep "opi-control" | grep -qv 'grep'
+    
+    opic_status=$?
+    if [[ $opic_status -eq 0 ]]; then
+        echo " + Restarting opi-control"
+        service opi-control restart
+    fi
+
 }
 
 unchanged_cert() {

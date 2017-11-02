@@ -1,3 +1,9 @@
+kinguard-certhandler (1.17) vili; urgency=medium
+
+  * Only restart opi-c when a new cert is deployed. 
+
+ -- PA Nilsson <pa@openproducts.se>  Thu, 02 Nov 2017 14:32:49 +0100
+
 kinguard-certhandler (1.16) vili; urgency=medium
 
   * Clean up unused certs.
