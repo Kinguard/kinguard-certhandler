@@ -1,3 +1,11 @@
+kinguard-certhandler (1.16) vili; urgency=medium
+
+  * Clean up unused certs.
+  * Only run if system is accessible from internet 
+  * Updated dehydrated
+
+ -- PA Nilsson <pa@openproducts.se>  Thu, 02 Nov 2017 11:49:29 +0100
+
 kinguard-certhandler (1.15) vili; urgency=medium
 
   * Reading domain from sysinfo.conf 

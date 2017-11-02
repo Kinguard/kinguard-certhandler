@@ -136,7 +136,7 @@ function is_webserver_running {
 	
 function run {
 	if [ $VERBOSE ]; then
-		echo "Running script"
+		echo "Running script '$@'"
 		$@
 	else
 		$@ &> /dev/null
@@ -160,6 +160,22 @@ function dehydrated_env {
 	debug "KEYLINK: ${KEYLINK}"
 }
 
+function check443 {
+	# function to to check if system is accessible from the "outside"
+
+	# generate random string
+	alive="/var/www/static/.well-known/alive.txt"
+	uuid=$(cat /proc/sys/kernel/random/uuid)
+	echo $uuid > $alive
+	debug "Writing $uuid to alive.txt"
+	status=$(curl -o /dev/null --silent --head --write-out '%{http_code}\n' "https://setup.op-i.me/check443.php?fqdn=${DOMAIN}&uuid=${uuid}")
+	debug "check443 response: $status"
+	debug "Removing alive.txt"
+	rm -f $alive
+	if [[ "$status" -ne 200 ]]; then
+		debug "System not reachable from internet"
+	fi
+}
 
 ME=`basename "$0"`
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -210,6 +226,10 @@ case $BACKEND in
 		exit 1
 		;;
 esac
+
+# check internet access to port 443.
+# check will terminate script if it does not succeed.
+check443
 
 
 if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
@@ -263,14 +283,14 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 			debug "Standalone mode, stopping webserver"
 			nginx_stop
 		else
-			# restart webserver in order to reload cert
-			debug "Restart webserver to load new cert"
 			case $webserver in
 				nginx)
-					debug "Restarting webserver"
-					nginx_restart
+					# Nginx is shall already be restarted by dehydrated hook-script
+					debug "Nginx is current webserver. Skipping restart, it should aldreay have been restarted."
+					#nginx_restart
 					;;
 				opi-control)
+					debug "Restart webserver to load new cert"
 					debug "opi-control running"
 					service opi-control restart
 					;;
@@ -280,6 +300,10 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 			esac
 		fi
 		
+		#clean up unused certs
+		OPTIONS="--cleanup -d ${DOMAIN} ${CONFIG}"
+		run ${SCRIPT} ${OPTIONS}
+
 		# cert script returned success value
 		if [ ! -L "$CERTLINK" ]; then # check if the symlink exists
 			debug "Symlink to cert not found, abort"
@@ -290,8 +314,8 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 			exit 1
 		fi
 
-
-		if [ -e ${ORG_CERT} ] && [ -e ${ORG_KEY} ]; then  # make sure that the original key and certificate is still present
+		# make sure that the original key and certificate is still present
+		if [ -e ${ORG_CERT} ] && [ -e ${ORG_KEY} ]; then  
 			rm -f ${CERT}
 			ln -s ${CERTLINK} ${CERT}
 
