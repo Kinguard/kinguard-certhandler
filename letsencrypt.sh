@@ -173,7 +173,8 @@ function check443 {
 	debug "Removing alive.txt"
 	rm -f $alive
 	if [[ "$status" -ne 200 ]]; then
-		debug "System not reachable from internet"
+		echo "System not reachable from internet, exit."
+		exit 1
 	fi
 }
 
@@ -272,7 +273,6 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 	# check if we have an account
 	find ${DIR}/dehydrated/accounts/ -name registration_info.json -exec grep "Status" {} \; | grep -q "valid"
 	valid_account=$?
-	echo "Valid account: $valid_account"
 	
 	if [[ $valid_account -ne 0 ]]; then
 		echo "Creating account"

@@ -1,3 +1,9 @@
+kinguard-certhandler (1.19) vili; urgency=medium
+
+  * Exit handler if the system is not reachable from the internet. 
+
+ -- PA Nilsson <pa@openproducts.se>  Thu, 14 Dec 2017 14:48:23 +0100
+
 kinguard-certhandler (1.18) vili; urgency=medium
 
   * Checking and creating account if needed. 
