@@ -128,7 +128,7 @@ function is_webserver_running {
 		if [ -z "$server" ]; then
 			echo="Unknown webserver"
 		else
-			echo $server
+			echo "Webserver: $server"
 		fi
 	fi
 	return $running
@@ -228,11 +228,6 @@ case $BACKEND in
 		;;
 esac
 
-# check internet access to port 443.
-# check will terminate script if it does not succeed.
-check443
-
-
 if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 
 	if [ -z ${DOMAIN} ]; then
@@ -258,6 +253,10 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 		OPTIONS="$OPTIONS --force"
 	fi
 
+	if [ $STANDALONE ]; then
+		OPTIONS="$OPTIONS --hook ${DIR}/dehydrated/hooks-standalone.sh"
+	fi
+
 	debug "Requesting cert"
 	debug "OPTIONS: ${OPTIONS}"
 
@@ -269,6 +268,12 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 		debug "No webserver running and stand-alone not specified, aborting"
 		exit 1		
 	fi
+
+	# check internet access to port 443.
+	# check will terminate script if it does not succeed.
+	check443
+
+		
 	
 	# check if we have an account
 	find ${DIR}/dehydrated/accounts/ -name registration_info.json -exec grep "Status" {} \; | grep -q "valid"

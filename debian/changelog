@@ -1,3 +1,9 @@
+kinguard-certhandler (1.20) vili; urgency=medium
+
+  * Moved check of external access until after start of webserver for stand alone mode. 
+
+ -- PA Nilsson <pa@openproducts.se>  Thu, 14 Dec 2017 22:35:49 +0100
+
 kinguard-certhandler (1.19) vili; urgency=medium
 
   * Exit handler if the system is not reachable from the internet. 
