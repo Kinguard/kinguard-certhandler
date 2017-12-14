@@ -269,6 +269,17 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 		exit 1		
 	fi
 	
+	# check if we have an account
+	find ${DIR}/dehydrated/accounts/ -name registration_info.json -exec grep "Status" {} \; | grep -q "valid"
+	valid_account=$?
+	echo "Valid account: $valid_account"
+	
+	if [[ $valid_account -ne 0 ]]; then
+		echo "Creating account"
+		CREATE_OPTIONS="${CONFIG} --register --accept-terms"
+		run ${SCRIPT} ${CREATE_OPTIONS}
+	fi
+	
 	run ${SCRIPT} ${OPTIONS}
 	
 	script_res=$?
