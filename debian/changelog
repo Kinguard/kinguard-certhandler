@@ -1,3 +1,9 @@
+kinguard-certhandler (1.21) vili; urgency=medium
+
+  * Fixed issue where webserver was left alive in standalone mode on non-reachable system. 
+
+ -- PA Nilsson <pa@openproducts.se>  Fri, 15 Dec 2017 15:51:54 +0100
+
 kinguard-certhandler (1.20) vili; urgency=medium
 
   * Moved check of external access until after start of webserver for stand alone mode. 

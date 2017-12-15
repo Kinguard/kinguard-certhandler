@@ -104,6 +104,7 @@ function nginx_restart {
 		return 1
 	fi
 	debug "(Re)starting webserver"
+	logger "Kinguard Certhandler: Starting webserver"
 	service nginx restart &> /dev/null 
 	service nginx status &> /dev/null 
 	if [ $? -ne 0 ]; then
@@ -116,6 +117,7 @@ function nginx_restart {
 
 function nginx_stop {
 	debug "Stopping webserver"
+	logger "Kinguard Certhandler: Stopping webserver"
 	service nginx stop &> /dev/null 
 }
 
@@ -173,8 +175,9 @@ function check443 {
 	debug "Removing alive.txt"
 	rm -f $alive
 	if [[ "$status" -ne 200 ]]; then
-		echo "System not reachable from internet, exit."
-		exit 1
+		reachable=false
+	else
+		reachable=true
 	fi
 }
 
@@ -272,8 +275,12 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 	# check internet access to port 443.
 	# check will terminate script if it does not succeed.
 	check443
-
-		
+	if [ $reachable == false ] && [ $webserver_status -ne 0 ]; then
+		# webserver was not running before, lets stop it again
+		echo "System not reachable from internet, exit."
+		debug "Standalone mode, stopping webserver"
+		nginx_stop
+	fi
 	
 	# check if we have an account
 	find ${DIR}/dehydrated/accounts/ -name registration_info.json -exec grep "Status" {} \; | grep -q "valid"
