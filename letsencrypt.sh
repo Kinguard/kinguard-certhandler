@@ -173,7 +173,9 @@ function check443 {
 	uuid=$(cat /proc/sys/kernel/random/uuid)
 	echo $uuid > $alive
 	debug "Writing $uuid to alive.txt"
-	status=$(curl -o /dev/null --silent --head --write-out '%{http_code}\n' "https://setup.op-i.me/check443.php?fqdn=${DOMAIN}&uuid=${uuid}")
+	status=$(curl -k -o /dev/null --silent --head --write-out '%{http_code}\n' "https://setup.op-i.me/check443.php?fqdn=${DOMAIN}&uuid=${uuid}")
+	ret=$?
+	debug "check443 exit value: $ret"
 	debug "check443 response: $status"
 	debug "Removing alive.txt"
 	rm -f $alive

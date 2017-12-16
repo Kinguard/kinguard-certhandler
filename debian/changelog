@@ -1,3 +1,9 @@
+kinguard-certhandler (1.23) vili; urgency=medium
+
+  * Allow check access script to run before all certificates are loaded. 
+
+ -- PA Nilsson <pa@openproducts.se>  Sat, 16 Dec 2017 22:58:55 +0100
+
 kinguard-certhandler (1.22) vili; urgency=medium
 
   * Exit script when on failure after webserver shutdown. 
