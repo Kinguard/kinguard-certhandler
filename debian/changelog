@@ -1,3 +1,9 @@
+kinguard-certhandler (1.22) vili; urgency=medium
+
+  * Exit script when on failure after webserver shutdown. 
+
+ -- PA Nilsson <pa@openproducts.se>  Sat, 16 Dec 2017 20:22:00 +0100
+
 kinguard-certhandler (1.21) vili; urgency=medium
 
   * Fixed issue where webserver was left alive in standalone mode on non-reachable system. 

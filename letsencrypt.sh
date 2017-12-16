@@ -2,7 +2,9 @@
 
 function debug {
 	if [ $VERBOSE ]; then
-		echo $1
+		args=$@
+		logger "CertHandler: $args"
+		echo $args
 	fi
 }
 
@@ -137,6 +139,7 @@ function is_webserver_running {
 }
 	
 function run {
+	debug "Running script '$@'"
 	if [ $VERBOSE ]; then
 		echo "Running script '$@'"
 		$@
@@ -181,6 +184,19 @@ function check443 {
 	fi
 }
 
+function exitfail {
+
+	debug "CertHander Exit: $1"
+	if [ $webserver_status -ne 0 ]; then
+		# webserver was not running before, lets stop it again
+		# opi-c is never started from this script, so only need to shut down nginx
+		debug "Webserver was not running when started"
+		debug "Make sure it is stopped."
+		nginx_stop
+	fi
+	exit 1
+}
+
 ME=`basename "$0"`
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -198,8 +214,7 @@ fi
 if [ -e $HANDLER_CONFIG ]; then 
 	source $HANDLER_CONFIG
 else
-	echo "Missing config file, exit"
-	exit 1
+	exitfail "Missing config file, exit"
 fi
 
 CERT="/etc/opi/web_cert.pem"
@@ -226,8 +241,7 @@ case $BACKEND in
 		exit 0
 		;;
 	*)
-		debug "Unknown certificate backend, aborting"
-		exit 1
+		exitfail "Unknown certificate backend, aborting"
 		;;
 esac
 
@@ -268,18 +282,14 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 		debug "Standalone mode, starting webserver"
 		nginx_restart
 	elif [ "${webserver_status}" -ne 0 ]; then
-		debug "No webserver running and stand-alone not specified, aborting"
-		exit 1		
+		exitfail "No webserver running and stand-alone not specified, aborting"
 	fi
 
 	# check internet access to port 443.
 	# check will terminate script if it does not succeed.
 	check443
-	if [ $reachable == false ] && [ $webserver_status -ne 0 ]; then
-		# webserver was not running before, lets stop it again
-		echo "System not reachable from internet, exit."
-		debug "Standalone mode, stopping webserver"
-		nginx_stop
+	if [ $reachable == false ]; then
+		exitfail "System not reachable from internet. Exit"
 	fi
 	
 	# check if we have an account
@@ -287,9 +297,12 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 	valid_account=$?
 	
 	if [[ $valid_account -ne 0 ]]; then
-		echo "Creating account"
+		debug "Creating account"
 		CREATE_OPTIONS="${CONFIG} --register --accept-terms"
 		run ${SCRIPT} ${CREATE_OPTIONS}
+		
+	else
+		debug "Found existing account"
 	fi
 	
 	run ${SCRIPT} ${OPTIONS}
@@ -316,12 +329,10 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 
 		# cert script returned success value
 		if [ ! -L "$CERTLINK" ]; then # check if the symlink exists
-			debug "Symlink to cert not found, abort"
-			exit 1
+			exitfail "Symlink to cert not found, abort"
 		fi
 		if [ ! -L "$KEYLINK" ]; then # check if the symlink exists
-			debug "Symlink to key not found, abort"
-			exit 1
+			exitfail "Symlink to key not found, abort"
 		fi
 
 		# make sure that the original key and certificate is still present
@@ -336,8 +347,7 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 		exit 0
 
 	else
-		debug "Failed to retreive certificate"
-		exit 1
+		exitfail "Failed to retreive certificate"
 	fi
 
 elif [ "$CMD" = "revoke" ]; then
