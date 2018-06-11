@@ -1,5 +1,4 @@
 #!/bin/bash
-
 function debug {
 	if [ $VERBOSE ]; then
 		args=$@
@@ -189,7 +188,7 @@ function check443 {
 function exitfail {
 
 	debug "CertHander Exit: $1"
-	if [ $webserver_status -ne 0 ]; then
+	if [[ $webserver_status -ne 0 ]]; then
 		# webserver was not running before, lets stop it again
 		# opi-c is never started from this script, so only need to shut down nginx
 		debug "Webserver was not running when started"
@@ -199,31 +198,31 @@ function exitfail {
 	exit 1
 }
 
+
+## ------------------   Script start ---------------------##
+
 ME=`basename "$0"`
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-SYSCONFIG="/etc/opi/sysinfo.conf"
-HANDLER_CONFIG="/etc/kinguard/kinguard-certhandler.conf"
+VERBOSE=$(kgp-sysinfo -p -c webcertificate -k debug)
+enabled=$(kgp-sysinfo -p -c webcertificate -k enabled)
+if [[ $enabled -ne 1 ]];then
+	debug "Service not enabled"
+	exit 0
+fi
+
+opi_name=$(kgp-sysinfo -p -c hostinfo -k hostname)
+domain=$(kgp-sysinfo -p -c hostinfo -k domain)
+BACKEND=$(kgp-sysinfo -p -c webcertificate -k backend)
+
+
 CONFIG="-f ${DIR}/dehydrated/config"
-
-if [ -e $SYSCONFIG ]; then 
-	# get name and domain from sysconfig.
-	source $SYSCONFIG
-else
-	debug "No sysinfo file found"
-fi
-
-if [ -e $HANDLER_CONFIG ]; then 
-	source $HANDLER_CONFIG
-else
-	exitfail "Missing config file, exit"
-fi
-
 CERT="/etc/opi/web_cert.pem"
 KEY="/etc/opi/web_key.pem"
 
 ORG_CERT="/etc/opi/org_cert.pem"
 ORG_KEY="/etc/opi/org_key.pem"
+
 
 if [ ! -z ${opi_name} ] && [ ! -z ${domain} ] ; then
 	DOMAIN="${opi_name}.${domain}"
