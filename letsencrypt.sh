@@ -187,7 +187,7 @@ function check443 {
 
 function exitfail {
 
-	debug "CertHander Exit: $1"
+	(>&2 echo "CertHander Exit: $1")
 	if [[ $webserver_status -ne 0 ]]; then
 		# webserver was not running before, lets stop it again
 		# opi-c is never started from this script, so only need to shut down nginx
@@ -205,9 +205,15 @@ ME=`basename "$0"`
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 VERBOSE=$(kgp-sysinfo -p -c webcertificate -k debug)
+
 enabled=$(kgp-sysinfo -p -c webcertificate -k enabled)
+if [[ $? -ne 0 ]]; then
+	(>&2 echo "Missing configuration parameter 'enabled'.")
+	exit 1
+fi
+
 if [[ $enabled -ne 1 ]];then
-	debug "Service not enabled"
+	(>&2 echo "Service not enabled.")
 	exit 0
 fi
 
@@ -215,6 +221,9 @@ opi_name=$(kgp-sysinfo -p -c hostinfo -k hostname)
 domain=$(kgp-sysinfo -p -c hostinfo -k domain)
 BACKEND=$(kgp-sysinfo -p -c webcertificate -k backend)
 
+# All config parameters that could silently fail the script have been read.
+# Let script exit on failed sys calls.
+set -e
 
 CONFIG="-f ${DIR}/dehydrated/config"
 CERT="/etc/opi/web_cert.pem"
@@ -294,8 +303,10 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 	fi
 	
 	# check if we have an account
+	set +e  # allow fail here
 	find ${DIR}/dehydrated/accounts/ -name registration_info.json -exec grep "Status" {} \; | grep -q "valid"
 	valid_account=$?
+	set -e
 	
 	if [[ $valid_account -ne 0 ]]; then
 		debug "Creating account"

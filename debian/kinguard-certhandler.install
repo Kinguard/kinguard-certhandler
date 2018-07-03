@@ -1,3 +1,2 @@
 letsencrypt.sh /usr/share/kinguard-certhandler
 dehydrated /usr/share/kinguard-certhandler
-kinguard-certhandler.conf /etc/kinguard/
