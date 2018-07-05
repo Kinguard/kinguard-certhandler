@@ -25,6 +25,55 @@ case "$1" in
 	then
 		mkdir -p /var/www/static/.well-known/acme-challenge
 	fi
+
+    # Migrate / set config parameters
+    if ! enabled=$(kgp-sysinfo -p -c webcertificate -k enabled)
+    then
+        # This will only trigger if the "enabled" parameter is not in db,
+        # the value of the parameter does not matter
+        # config is not in sysconfig, can we read if from old config?
+        oldconfig=/etc/kinguard/kinguard-certhandler.conf
+        if [ -e $oldconfig ] 
+        then
+            backend=$(sed -n 's/BACKEND=\(.*\)$/\1/ p' <$oldconfig)
+            if [ -z $backend ]
+            then
+                # config file exists, but not with what we expected.
+                # use default value to sysconfig
+                backend="LETSENCRYPT"
+            fi
+            customcert=$(sed -n 's/CERT=\(.*\)$/\1/ p' <$oldconfig)
+            if [ ! -z $customcert ]
+            then
+                kgp-sysinfo -c webcertificate -k customcert -w "$customcert"        
+            fi
+
+            customkey=$(sed -n 's/KEY=\(.*\)$/\1/ p' <$oldconfig)
+            if [ ! -z $customkey ]
+            then
+                kgp-sysinfo -c webcertificate -k customkey -w "$customkey"        
+            fi
+
+        else
+            # nothing in old config either, use default
+            backend="LETSENCRYPT"
+        fi
+
+        # Set default values for new parameters not previously in config
+        kgp-sysinfo -b -w "true" -c webcertificate -k enabled
+        kgp-sysinfo -w "$backend" -c webcertificate -k backend
+
+        if [ -e "/etc/opi/signed_certs/" ]
+        then
+            # legacy path
+            kgp-sysinfo -w "/etc/opi/signed_certs/" -c webcertificate -k certpath  
+        else
+            kgp-sysinfo -w "/etc/kinguard/signed_certs/" -c webcertificate -k certpath  
+        fi
+        
+        rm -f $oldconfig
+    fi
+
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

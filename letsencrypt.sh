@@ -153,6 +153,7 @@ function dehydrated_env {
 	WELLKNOWN=$(echo $D_CONFIG | sed -n 's%.*WELLKNOWN=\"\(.*\)\"%\1%p')
 	debug "WELLKNOWN: ${WELLKNOWN}"
 
+	# dehydrated reads "CERTDIR" from sysconfig from it's own configs.
 	D_CONFIG="$(${SCRIPT} -e | grep CERTDIR)"
 	CERTDIR=$(echo $D_CONFIG | sed -n 's%.*CERTDIR=\"\(.*\)\"%\1%p')
 	debug "CERTDIR: $CERTDIR"
@@ -221,7 +222,7 @@ opi_name=$(kgp-sysinfo -p -c hostinfo -k hostname)
 domain=$(kgp-sysinfo -p -c hostinfo -k domain)
 BACKEND=$(kgp-sysinfo -p -c webcertificate -k backend)
 
-# All config parameters that could silently fail the script have been read.
+# All config parameters that could fail the script have been read.
 # Let script exit on failed sys calls.
 set -e
 

@@ -1,7 +1,6 @@
 CA="https://acme-staging.api.letsencrypt.org/directory"
 BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 WELLKNOWN="/var/www/static/.well-known/acme-challenge"
-DOMAINS_TXT="/usr/share/kinguard-dehydrated/domains.txt"
-CERTDIR=/etc/opi/signed_certs
+CERTDIR=$(kgp-sysinfo -p -c webcertificate -k certpath)
 HOOK=$BASEDIR/hooks.sh
 
