@@ -1,3 +1,9 @@
+kinguard-certhandler (1.26) vili; urgency=medium
+
+  * Use "activecert" from sysconfig 
+
+ -- PA Nilsson <pa@openproducts.se>  Fri, 06 Jul 2018 10:49:10 +0200
+
 kinguard-certhandler (1.25) vili; urgency=medium
 
   * Moved config migration to postinst. 

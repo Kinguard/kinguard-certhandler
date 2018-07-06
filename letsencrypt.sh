@@ -221,14 +221,15 @@ fi
 opi_name=$(kgp-sysinfo -p -c hostinfo -k hostname)
 domain=$(kgp-sysinfo -p -c hostinfo -k domain)
 BACKEND=$(kgp-sysinfo -p -c webcertificate -k backend)
+CERT=$(kgp-sysinfo -p -c webcertificate -k activecert)
+KEY=$(kgp-sysinfo -p -c webcertificate -k activekey)
 
 # All config parameters that could fail the script have been read.
 # Let script exit on failed sys calls.
 set -e
 
 CONFIG="-f ${DIR}/dehydrated/config"
-CERT="/etc/opi/web_cert.pem"
-KEY="/etc/opi/web_key.pem"
+
 
 ORG_CERT="/etc/opi/org_cert.pem"
 ORG_KEY="/etc/opi/org_key.pem"
