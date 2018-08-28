@@ -140,7 +140,6 @@ function is_webserver_running {
 function run {
 	debug "Running script '$@'"
 	if [ $VERBOSE ]; then
-		echo "Running script '$@'"
 		$@
 	else
 		$@ &> /dev/null
