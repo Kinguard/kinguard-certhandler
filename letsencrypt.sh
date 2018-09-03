@@ -20,8 +20,6 @@ function usage {
 	echo "        		  working but not signed certificates will be generated"
 	echo "  -v 			: Makes the script talk back"
 	echo ""
-	echo "This script will make a of copy of any active virtual hosts file, change the certificate pointers to the Let's Encrypt certificates and activate the new configs. It will not touch any vhosts that are not enabled or that does not use ssl."
-	echo ""
 }
 
 function getargs {
@@ -64,17 +62,6 @@ function create_configs {
 	local OC_WELLKNOWN="/usr/share/opi-control/web/.well-known" # well-known path for opi-control
 	local WEB_TARGET=$(dirname ${WELLKNOWN})
 	
-	if [ ! -e  ${ORG_CERT} ]; then
-		debug "Copy original cert and create symlink"
-		mv ${CERT} ${ORG_CERT}
-		ln -s ${ORG_CERT} ${CERT}
-	fi 
-	if [ ! -e  ${ORG_KEY} ]; then
-		debug "Copy original key and create symlink"
-		mv ${KEY} ${ORG_KEY}
-		ln -s ${ORG_KEY} ${KEY}
-	fi 
-
 	# check to see that a symlink to "well-known" exists from opi-control dir
 	if [ ! -L "$OC_WELLKNOWN" ]; then
 		debug "Creating symlink for opi-control use"
@@ -85,16 +72,13 @@ function create_configs {
 }
 
 function restore_configs {
-	if [ -e  ${ORG_CERT} ] && [ -e  ${ORG_KEY} ]; then
-		debug "Restore original cert"
-		rm -f ${CERT}
-		mv ${ORG_CERT} ${CERT}
-		rm -f ${KEY}		
-		mv ${ORG_KEY} ${KEY}
-	else
-		debug "Missing original key/cert"
-		return 1
-	fi 
+	ORG_CERT=$(kgp-sysinfo -c webcertificate -k defaultcert -p)
+	ORG_KEY=$(kgp-sysinfo -c webcertificate -k defaultkey -p)
+
+	rm -f ${CERT}
+	ln -s ${ORG_CERT} ${CERT}
+	rm -f ${KEY}		
+	ln -s ${ORG_KEY} ${KEY}
 }
 
 function nginx_restart {
@@ -105,7 +89,7 @@ function nginx_restart {
 		return 1
 	fi
 	debug "(Re)starting webserver"
-	logger "Kinguard Certhandler: Starting webserver"
+	logger "Kinguard Certhandler: Reloading webserver"
 	service nginx restart &> /dev/null 
 	service nginx status &> /dev/null 
 	if [ $? -ne 0 ]; then
@@ -198,6 +182,36 @@ function exitfail {
 	exit 1
 }
 
+function validcertdate {
+
+		# Check if the existing certificate is too old, < 3 days remaining
+		# 3days = 259200 secs
+		NOW=$(date +%s)
+		CERTDATE=$(openssl x509 -text -noout -in $CERT | sed -n 's/\s*Not After :\s*\(.*\)/\1/p')
+		debug "Certificate expires on: ${CERTDATE}"
+		CERTDATESECS=$(date --date="$CERTDATE" +%s)
+		debug "Certificate secs: $CERTDATESECS"
+
+		let DIFF=$CERTDATESECS-$NOW
+		debug "DIFF: $DIFF"
+		if [ $DIFF -lt 259200 ]; then
+			debug "WARNING: Certificate expires within 3 days"
+			validcert=false
+		else
+			validcert=true
+		fi
+}
+
+function validcertdomain {
+	certdomain=$(openssl x509 -text -noout -in $CERT | awk '/Subject:.* CN/ {print $NF}')
+	debug "Cert domain: $certdomain"
+	if [ "$certdomain" != "$DOMAIN" ]; then
+		validcert=false
+	else
+		validcert=true
+	fi
+
+}
 
 ## ------------------   Script start ---------------------##
 
@@ -230,10 +244,6 @@ set -e
 CONFIG="-f ${DIR}/dehydrated/config"
 
 
-ORG_CERT="/etc/opi/org_cert.pem"
-ORG_KEY="/etc/opi/org_key.pem"
-
-
 if [ ! -z ${opi_name} ] && [ ! -z ${domain} ] ; then
 	DOMAIN="${opi_name}.${domain}"
 fi
@@ -247,7 +257,7 @@ case $BACKEND in
 	LETSENCRYPT)
 		debug "Using Let's Encrypt backend"
 		;;
-	USER)
+	CUSTOMCERT)
 		debug "Using user defined certificates, nothing to do here"
 		exit 0
 		;;
@@ -266,7 +276,6 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 	DOMAIN="$(echo ${DOMAIN} | tr '[:upper:]' '[:lower:]')"  # make lowercase fqdn
 
 	debug "Running Let's Encrypt certificate generation for ${DOMAIN}"
-	
 	dehydrated_env	
 	create_configs  # generate configuration files if needed
 
@@ -300,7 +309,49 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 	# check will terminate script if it does not succeed.
 	check443
 	if [ $reachable == false ]; then
-		exitfail "System not reachable from internet. Exit"
+		# check if the domain has changed or if the exiting certificate has expired.
+		# In this case we need to use the fallback, OP-signed certificate since the LE cert is not valid
+		# for the configured domain.
+		debug "Validate certificate name against opiname"
+		validcert=false
+		validcertdomain
+		if [ $validcert == false ]; then
+			# we have a new domain, but the system is not reachable from the internet
+			# so not possible to get an LE cert.
+			# Use fallback with OP cert, but do NOT restart webserver.
+			# The only way to set a new fqdn is from web UI (using opi-backend), and the browser 
+			# needs to have the response before restarting webserver, otherwise the response will be
+			# generated with the new certificate and rejected by the broswer.
+			# opi-backend will reload webserver when the response has been sent.
+			debug "Domain has changed, LE not available."
+			debug "Using OP fallback certificate"
+			restore_configs
+		fi
+
+		# check the time remaining on the certificate
+		debug "Validate certificate expire date"
+		validcert=false
+
+		validcertdate
+		if [ $validcert == false ]; then
+			# LE cert should always have more then 30days left, now less then 3
+			# so use the fallback.
+			debug "Certificate is too close to (or past) exire date, use fallback."
+			restore_configs
+			nginx_restart
+		else
+			debug "Certificate has not exipired."
+		fi
+
+		# It the system using a custom certificate?
+		currentcertpath=$(realpath $CERT)
+		customcertpath=$(kgp-sysinfo -c webcertificate -k customcert -p)
+		if [ "$currentcertpath" == "$customcertpath" ]; then
+			debug "System is configured for LE cert but a custom cert is active, restore default."
+			restore_configs
+			nginx_restart
+		fi
+		exitfail "System not reachable from internet. Skipping LE generation."
 	fi
 	
 	# check if we have an account
@@ -348,14 +399,11 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 			exitfail "Symlink to key not found, abort"
 		fi
 
-		# make sure that the original key and certificate is still present
-		if [ -e ${ORG_CERT} ] && [ -e ${ORG_KEY} ]; then  
-			rm -f ${CERT}
-			ln -s ${CERTLINK} ${CERT}
+		rm -f ${CERT}
+		ln -s ${CERTLINK} ${CERT}
 
-			rm -f ${KEY}
-			ln -s ${KEYLINK} ${KEY}
-		fi
+		rm -f ${KEY}
+		ln -s ${KEYLINK} ${KEY}
 
 		exit 0
 

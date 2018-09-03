@@ -1,3 +1,9 @@
+kinguard-certhandler (1.27) vili; urgency=medium
+
+  * Improved handling when changes between custom cert, LE cert and fallback certs.
+
+ -- PA Nilsson <pa@openproducts.se>  Mon, 03 Sep 2018 16:38:18 +0200
+
 kinguard-certhandler (1.26) vili; urgency=medium
 
   * Use "activecert" from sysconfig 
