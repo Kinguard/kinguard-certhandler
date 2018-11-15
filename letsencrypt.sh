@@ -132,12 +132,12 @@ function run {
 }
 
 function dehydrated_env {
-	D_CONFIG="$(${SCRIPT} -e ${useDns01} | grep WELLKNOWN)"
+	D_CONFIG="$(${SCRIPT} -e ${useDns01} | grep ' WELLKNOWN')"
 	WELLKNOWN=$(echo $D_CONFIG | sed -n 's%.*WELLKNOWN=\"\(.*\)\"%\1%p')
 	debug "WELLKNOWN: ${WELLKNOWN}"
 
 	# dehydrated reads "CERTDIR" from sysconfig from it's own configs.
-	D_CONFIG="$(${SCRIPT} -e ${useDns01} | grep CERTDIR)"
+	D_CONFIG="$(${SCRIPT} -e ${useDns01} | grep ' CERTDIR')"
 	CERTDIR=$(echo $D_CONFIG | sed -n 's%.*CERTDIR=\"\(.*\)\"%\1%p')
 	debug "CERTDIR: $CERTDIR"
 
@@ -324,7 +324,7 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 		exitfail "No webserver running and stand-alone not specified, aborting"
 	fi
 
-	if [ ! $useDns01 ]; then
+	if [ -z "$useDns01" ]; then
 		# check internet access to port 443.
 		# check will terminate script if it does not succeed.
 	 	check443

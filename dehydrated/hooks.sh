@@ -22,7 +22,7 @@ deploy_challenge() {
     DIR=$(dirname $0)
     echo "Running dns-01 deploy script"
     # redirect warning about SubjectAltNames from CA to /dev/null
-    ${DIR}/dns01.py -v -t ${TOKEN_VALUE} -d ${DOMAIN} deploy_challenge 2> /dev/null
+    ${DIR}/dns01.py -t ${TOKEN_VALUE} -d ${DOMAIN} deploy_challenge 2> /dev/null
     # make sure we give time for dns records to propagate to NS2
     sleep 2
 }
@@ -39,7 +39,7 @@ clean_challenge() {
     echo "Running dns-01 cleanup script"
 
     # redirect warning about SubjectAltNames from CA to /dev/null
-    ${DIR}/dns01.py -v -t ${TOKEN_VALUE} -d ${DOMAIN} clean_challenge 2> /dev/null
+    ${DIR}/dns01.py -t ${TOKEN_VALUE} -d ${DOMAIN} clean_challenge 2> /dev/null
 }
 
 deploy_cert() {
