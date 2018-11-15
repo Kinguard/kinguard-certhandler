@@ -1,3 +1,9 @@
+kinguard-certhandler (1.28) vili; urgency=medium
+
+  * Added support to generate LE wildcard certificates. 
+
+ -- PA Nilsson <pa@openproducts.se>  Thu, 15 Nov 2018 15:12:37 +0100
+
 kinguard-certhandler (1.27) vili; urgency=medium
 
   * Improved handling when changes between custom cert, LE cert and fallback certs.
