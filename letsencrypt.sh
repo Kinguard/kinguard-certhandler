@@ -132,12 +132,12 @@ function run {
 }
 
 function dehydrated_env {
-	D_CONFIG="$(${SCRIPT} -e | grep WELLKNOWN)"
+	D_CONFIG="$(${SCRIPT} -e ${useDns01} | grep WELLKNOWN)"
 	WELLKNOWN=$(echo $D_CONFIG | sed -n 's%.*WELLKNOWN=\"\(.*\)\"%\1%p')
 	debug "WELLKNOWN: ${WELLKNOWN}"
 
 	# dehydrated reads "CERTDIR" from sysconfig from it's own configs.
-	D_CONFIG="$(${SCRIPT} -e | grep CERTDIR)"
+	D_CONFIG="$(${SCRIPT} -e ${useDns01} | grep CERTDIR)"
 	CERTDIR=$(echo $D_CONFIG | sed -n 's%.*CERTDIR=\"\(.*\)\"%\1%p')
 	debug "CERTDIR: $CERTDIR"
 
@@ -266,6 +266,17 @@ case $BACKEND in
 		;;
 esac
 
+# check if we have domain control for use with dns-01 challange type
+doms=$(kgp-sysinfo -p -c dns -k availabledomains | tr "," "\n") 
+for dom in $doms
+do
+	if [[ ${DOMAIN} == *${dom} ]]; then
+		useDns01=" -t dns-01"
+		debug "Using dns-01 to challange domain"
+	fi
+done
+
+
 if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 
 	if [ -z ${DOMAIN} ]; then
@@ -285,7 +296,15 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 		debug "Using $webserver"
 	fi
 
-	OPTIONS="-c -d ${DOMAIN} ${CONFIG}"
+
+	if [ ! -z "$useDns01" ]; then
+		# only request wildcard if we have dns-01 support
+		# http-01 does not support wildcard certificat generation.
+		OPTIONS="-c -d ${DOMAIN} -d *.${DOMAIN} ${CONFIG} ${useDns01}"
+	else
+		OPTIONS="-c -d ${DOMAIN} ${CONFIG}"
+	fi
+
 	if [ "$CMD" = "force" ]; then
 		OPTIONS="$OPTIONS --force"
 	fi
@@ -305,55 +324,56 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 		exitfail "No webserver running and stand-alone not specified, aborting"
 	fi
 
-	# check internet access to port 443.
-	# check will terminate script if it does not succeed.
-	check443
-	if [ $reachable == false ]; then
-		# check if the domain has changed or if the exiting certificate has expired.
-		# In this case we need to use the fallback, OP-signed certificate since the LE cert is not valid
-		# for the configured domain.
-		debug "Validate certificate name against opiname"
-		validcert=false
-		validcertdomain
-		if [ $validcert == false ]; then
-			# we have a new domain, but the system is not reachable from the internet
-			# so not possible to get an LE cert.
-			# Use fallback with OP cert, but do NOT restart webserver.
-			# The only way to set a new fqdn is from web UI (using opi-backend), and the browser 
-			# needs to have the response before restarting webserver, otherwise the response will be
-			# generated with the new certificate and rejected by the broswer.
-			# opi-backend will reload webserver when the response has been sent.
-			debug "Domain has changed, LE not available."
-			debug "Using OP fallback certificate"
-			restore_configs
-		fi
-
-		# check the time remaining on the certificate
-		debug "Validate certificate expire date"
-		validcert=false
-
-		validcertdate
-		if [ $validcert == false ]; then
-			# LE cert should always have more then 30days left, now less then 3
-			# so use the fallback.
-			debug "Certificate is too close to (or past) exire date, use fallback."
-			restore_configs
-			nginx_restart
-		else
-			debug "Certificate has not exipired."
-		fi
-
-		# It the system using a custom certificate?
-		currentcertpath=$(realpath $CERT)
-		customcertpath=$(kgp-sysinfo -c webcertificate -k customcert -p)
-		if [ "$currentcertpath" == "$customcertpath" ]; then
-			debug "System is configured for LE cert but a custom cert is active, restore default."
-			restore_configs
-			nginx_restart
-		fi
-		exitfail "System not reachable from internet. Skipping LE generation."
-	fi
-	
+	if [ ! $useDns01 ]; then
+		# check internet access to port 443.
+		# check will terminate script if it does not succeed.
+	 	check443
+	 	if [ $reachable == false ]; then
+	 		# check if the domain has changed or if the exiting certificate has expired.
+	 		# In this case we need to use the fallback, OP-signed certificate since the LE cert is not valid
+	 		# for the configured domain.
+	 		debug "Validate certificate name against opiname"
+	 		validcert=false
+	 		validcertdomain
+	 		if [ $validcert == false ]; then
+	 			# we have a new domain, but the system is not reachable from the internet
+	 			# so not possible to get an LE cert.
+	 			# Use fallback with OP cert, but do NOT restart webserver.
+	 			# The only way to set a new fqdn is from web UI (using opi-backend), and the browser 
+	 			# needs to have the response before restarting webserver, otherwise the response will be
+	 			# generated with the new certificate and rejected by the broswer.
+	 			# opi-backend will reload webserver when the response has been sent.
+	 			debug "Domain has changed, LE not available."
+	 			debug "Using OP fallback certificate"
+	 			restore_configs
+	 		fi
+	 
+	 		# check the time remaining on the certificate
+	 		debug "Validate certificate expire date"
+	 		validcert=false
+	 
+	 		validcertdate
+	 		if [ $validcert == false ]; then
+	 			# LE cert should always have more then 30days left, now less then 3
+	 			# so use the fallback.
+	 			debug "Certificate is too close to (or past) exire date, use fallback."
+	 			restore_configs
+	 			nginx_restart
+	 		else
+	 			debug "Certificate has not exipired."
+	 		fi
+	 
+	 		# It the system using a custom certificate?
+	 		currentcertpath=$(realpath $CERT)
+	 		customcertpath=$(kgp-sysinfo -c webcertificate -k customcert -p)
+	 		if [ "$currentcertpath" == "$customcertpath" ]; then
+	 			debug "System is configured for LE cert but a custom cert is active, restore default."
+	 			restore_configs
+	 			nginx_restart
+	 		fi
+	 		exitfail "System not reachable from internet. Skipping LE generation."
+	 	fi
+	fi	
 	# check if we have an account
 	set +e  # allow fail here
 	find ${DIR}/dehydrated/accounts/ -name registration_info.json -exec grep "Status" {} \; | grep -q "valid"
@@ -376,8 +396,6 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 
 	if [ $script_res -eq 0 ]; then
 
-
-
 		if [ $webserver_status -ne 0 ]; then
 			# webserver was not running before, lets stop it again
 			debug "Standalone mode, stopping webserver"
@@ -388,7 +406,11 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 		fi
 		
 		#clean up unused certs
-		OPTIONS="--cleanup -d ${DOMAIN} ${CONFIG}"
+		if [ ! -z "$useDns01" ]; then
+			OPTIONS="--cleanup -d ${DOMAIN} -d *.${DOMAIN} ${useDns01} ${CONFIG}"
+		else
+			OPTIONS="--cleanup -d ${DOMAIN} ${CONFIG}"
+		fi
 		run ${SCRIPT} ${OPTIONS}
 
 		# cert script returned success value

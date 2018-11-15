@@ -1,6 +1,7 @@
-CA="https://acme-staging.api.letsencrypt.org/directory"
+CA="https://acme-staging-v02.api.letsencrypt.org/directory"
 BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 WELLKNOWN="/var/www/static/.well-known/acme-challenge"
 CERTDIR=$(kgp-sysinfo -p -c webcertificate -k certpath)
 HOOK=$BASEDIR/hooks.sh
+
 
