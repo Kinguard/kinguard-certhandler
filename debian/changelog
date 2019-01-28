@@ -1,3 +1,15 @@
+kinguard-certhandler (1.31) vili; urgency=medium
+
+  * Restart webserver after new certs have been applied. 
+
+ -- PA Nilsson <pa@openproducts.se>  Mon, 28 Jan 2019 22:30:00 +0100
+
+kinguard-certhandler (1.30) vili; urgency=medium
+
+  * Updated stand-alone hook script to use dns-01. 
+
+ -- PA Nilsson <pa@openproducts.se>  Fri, 16 Nov 2018 10:18:04 +0100
+
 kinguard-certhandler (1.29) vili; urgency=medium
 
   * Fixed CERTDIR path mixup. 

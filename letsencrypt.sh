@@ -400,9 +400,6 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 			# webserver was not running before, lets stop it again
 			debug "Standalone mode, stopping webserver"
 			nginx_stop
-		else
-			# webserver restarted by hook-script
-			debug "Keeping webserver alive."
 		fi
 		
 		#clean up unused certs
@@ -426,6 +423,11 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 
 		rm -f ${KEY}
 		ln -s ${KEYLINK} ${KEY}
+
+		if [ $webserver_status -eq 0 ]; then
+			# reload webserver config with new certs
+			nginx_restart
+		fi
 
 		exit 0
 

@@ -19,6 +19,12 @@ deploy_challenge() {
     #   validation, this is what you want to put in the _acme-challenge
     #   TXT record. For HTTP validation it is the value that is expected
     #   be found in the $TOKEN_FILENAME file.
+    DIR=$(dirname $0)
+    echo "Running dns-01 deploy script"
+    # redirect warning about SubjectAltNames from CA to /dev/null
+    ${DIR}/dns01.py -t ${TOKEN_VALUE} -d ${DOMAIN} deploy_challenge 2> /dev/null
+    # make sure we give time for dns records to propagate to NS2
+    sleep 2
 }
 
 clean_challenge() {
@@ -29,6 +35,12 @@ clean_challenge() {
     # files or DNS records that are no longer needed.
     #
     # The parameters are the same as for deploy_challenge.
+    DIR=$(dirname $0)
+    echo "Running dns-01 cleanup script"
+
+    # redirect warning about SubjectAltNames from CA to /dev/null
+    ${DIR}/dns01.py -t ${TOKEN_VALUE} -d ${DOMAIN} clean_challenge 2> /dev/null
+
 }
 
 deploy_cert() {
