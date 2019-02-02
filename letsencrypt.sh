@@ -82,15 +82,28 @@ function restore_configs {
 }
 
 function nginx_restart {
+	local status
 	debug "Check nginx config"
+	# do not exit on failure here
+	set +e
 	nginx -t &> /dev/null
-	if [ $? -ne 0 ]; then
+	status=$?
+	if [ $status -ne 0 ]; then
 		debug "Nginx config error, not restarting"
 		return 1
+		# can't set "-e" here, then it would terminate script when returning "1"
 	fi
-	debug "(Re)starting webserver"
-	logger "Kinguard Certhandler: Reloading webserver"
-	service nginx restart &> /dev/null 
+	set -e
+	service nginx status &> /dev/null 
+	if [ $? -ne 0 ]; then
+		logger "Kinguard Certhandler: (Re)starting webserver"
+		debug "(Re)starting webserver"
+		service nginx restart &> /dev/null 
+	else
+		logger "Kinguard Certhandler: Reloading webserver"
+		debug "Reloading webserver"
+		service nginx reload &> /dev/null 
+	fi
 	service nginx status &> /dev/null 
 	if [ $? -ne 0 ]; then
 		debug "Webserver not running after restart command"
@@ -346,6 +359,7 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 	 			debug "Domain has changed, LE not available."
 	 			debug "Using OP fallback certificate"
 	 			restore_configs
+	 			nginx_restart
 	 		fi
 	 
 	 		# check the time remaining on the certificate
@@ -426,7 +440,15 @@ if [ "$CMD" = "create" ] || [ "$CMD" = "force" ] || [ "$CMD" = "renew" ]; then
 
 		if [ $webserver_status -eq 0 ]; then
 			# reload webserver config with new certs
+			# if nginx config fails, dont exit restore configs instead.
+			set +e
 			nginx_restart
+			if [ $? -ne 0 ]; then
+				set -e # not set if nginx failed previously.
+				debug "Restoring original config"
+				restore_configs
+				nginx_restart
+			fi
 		fi
 
 		exit 0

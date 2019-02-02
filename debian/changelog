@@ -1,3 +1,9 @@
+kinguard-certhandler (1.32) vili; urgency=medium
+
+  * Improve handling of failed / missing certs. 
+
+ -- PA Nilsson <pa@openproducts.se>  Sat, 02 Feb 2019 11:14:46 +0100
+
 kinguard-certhandler (1.31) vili; urgency=medium
 
   * Restart webserver after new certs have been applied. 
