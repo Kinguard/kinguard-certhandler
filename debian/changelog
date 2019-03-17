@@ -1,3 +1,9 @@
+kinguard-certhandler (1.33) vili; urgency=medium
+
+  * Only restart nginx if it was previously running.
+
+ -- PA Nilsson <pa@openproducts.se>  Sun, 17 Mar 2019 14:11:30 +0100
+
 kinguard-certhandler (1.32) vili; urgency=medium
 
   * Improve handling of failed / missing certs. 

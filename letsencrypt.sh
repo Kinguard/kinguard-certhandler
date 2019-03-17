@@ -93,6 +93,10 @@ function nginx_restart {
 		return 1
 		# can't set "-e" here, then it would terminate script when returning "1"
 	fi
+	if [ "$webserver" != "nginx" ]; then
+		# do not restart nginx if it was not used
+		return 0
+	fi
 	set -e
 	service nginx status &> /dev/null 
 	if [ $? -ne 0 ]; then
@@ -128,7 +132,7 @@ function is_webserver_running {
 		if [ -z "$server" ]; then
 			echo="Unknown webserver"
 		else
-			echo "Webserver: $server"
+			echo "$server"
 		fi
 	fi
 	return $running
