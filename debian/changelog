@@ -1,3 +1,9 @@
+kinguard-certhandler (1.34) vili; urgency=medium
+
+  * Add dep on net-tools for netstat
+
+ -- Tor Krill <tor@openproducts.se>  Thu, 27 Jun 2019 09:49:18 +0200
+
 kinguard-certhandler (1.33) vili; urgency=medium
 
   * Only restart nginx if it was previously running.
