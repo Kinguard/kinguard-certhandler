@@ -62,7 +62,6 @@ if __name__=='__main__':
 		print("Missing arguments for '%s'" % dns01cmd)
 
 	
-	ca = pylibopi.GetKeyAsString("hostinfo","cafile")
 	postargs = {}
 	postheaders = {}
 	postargs["dns-01-token"] = dns01token
@@ -97,4 +96,4 @@ if __name__=='__main__':
 	authUrl = authServer + authPath
 	dprint("Using url: '%s'" % authUrl)
 
-	r = requests.post(authUrl, headers=postheaders, data=postargs, verify=ca)
+	r = requests.post(authUrl, headers=postheaders, data=postargs)
