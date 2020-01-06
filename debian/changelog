@@ -1,3 +1,15 @@
+kinguard-certhandler (1.37) vili; urgency=medium
+
+  * Remove dep on libcurl3 not present in Buster
+
+ -- Tor Krill <tor@openproducts.se>  Mon, 05 Jan 2020 14:27:08 +0200
+
+kinguard-certhandler (1.36) vili; urgency=medium
+
+  * Buster update
+
+ -- Tor Krill <tor@openproducts.se>  Mon, 05 Jan 2020 14:27:07 +0200
+
 kinguard-certhandler (1.35) vili; urgency=medium
 
   * Remove hardcoded link to ca file 
