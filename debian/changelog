@@ -1,3 +1,9 @@
+kinguard-certhandler (1.40) vigrid; urgency=medium
+
+  * Bullseye build
+
+ -- Tor Krill <tor@openproducts.se>  Tue, 01 Feb 2022 08:48:43 +0100
+
 kinguard-certhandler (1.39) vili; urgency=medium
 
   * PA: Merged dehydrated 0.6.5 to fix bug in LE id.
